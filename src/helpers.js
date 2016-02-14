@@ -5,7 +5,7 @@ var s = require('./string');
 
 module.exports = {
     extractLiteral: function (methodName, node) {
-        var line = node.loc.start.line;
+        var line = node.start.line;
 
         if (node.type === 'Literal') {
             return node.value;
@@ -14,7 +14,7 @@ module.exports = {
 
     extractDependency: function (methodName, node) {
         var self = this;
-        var line = node.loc.start.line;
+        var line = node.start.line;
 
         if (node.type === 'ArrayExpression') {
             var elements = node.elements;

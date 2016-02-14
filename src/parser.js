@@ -59,12 +59,12 @@ module.exports = {
             providerTypes = [],
             dependencies = [];
 
-        falafel(content, { loc: true }, function (node) {
+        falafel(content, { loc: true, ecmaVersion: 6, sourceType: 'module' }, function (node) {
             var nameNode, definitionNode;
 
             if (node.type === 'CallExpression' && node.callee && node.arguments) {
                 var methodName = (node.callee.property || {}).name || node.callee.name;
-                var line = node.loc.start.line;
+                var line = node.start.line;
 
                 if (methodName === 'require') {
                     var path = helpers.extractLiteral(methodName, node.arguments[0]);
