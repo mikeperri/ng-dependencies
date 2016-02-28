@@ -11,7 +11,7 @@
     "ngrequire": "bin/cli.js"
   },
   "scripts": {
-    "test": "./node_modules/.bin/istanbul cover ./node_modules/mocha/bin/_mocha ./test/**/spec*.js --report lcovonly -- -R spec && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js && rm -rf ./coverage"
+    "test": "./node_modules/.bin/istanbul cover ./node_modules/mocha/bin/_mocha ./test/**/spec*.js --report lcovonly -- -R spec && rm -rf ./coverage"
   },
   "author": {
     "name": "Mike Perri",
@@ -29,7 +29,6 @@
   },
   "devDependencies": {
     "chai": "^1.9.2",
-    "coveralls": "^2.11.2",
     "fs-extra": "^0.16.3",
     "istanbul": "^0.3.13",
     "mocha": "^2.1.0",
