@@ -1,4 +1,4 @@
-module.export = angular.module('c')
-.factory('c', function(a, b) {
+module.export = angular.module('c', [ 'a', 'b' ])
+.factory('c', function() {
 
 });

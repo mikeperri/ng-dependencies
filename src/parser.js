@@ -1,8 +1,8 @@
-var falafel = require('falafel');
+var acorn = require('acorn');
+var acornWalk = require('acorn/dist/walk');
 var _ = require('lodash');
 
 var helpers = require('./helpers');
-var s = require('./string');
 
 var ngFuncs = [
     'config',
@@ -24,112 +24,153 @@ var ngProviders = [
 
 module.exports = {
     /**
-     * Trace the callee chain until we reach the end
+     * Returns the callee chain for a given call expression
+     *
+     * e.g. if node is a call expression for angular.module('someModule', []).controller(function () {})
+     * then this function will return the nodes for 'angular', 'module', and 'controller'
      *
      * @param node
      */
-    traceCalleeChain: function (node) {
+    getCalleeChain: function (node) {
         var self = this;
-        var context = node.object || node.callee;
 
-        if (context) {
-            return self.traceCalleeChain(context);
+        if (node.type !== 'CallExpression') {
+            return false;
         }
 
-        return node.name;
+        return self._getCalleeChain(node.callee, [ node ]);
+    },
+
+    _getCalleeChain: function (node, chain) {
+        var self = this;
+
+        if (node.type === 'Identifier') {
+            return [ node ];
+        } else if (node.type === 'MemberExpression') {
+            var callee = node.object.callee;
+
+            if (callee) {
+                return self._getCalleeChain(callee, [ node ].concat(chain));
+            } else {
+                return [ node ].concat(chain);
+            }
+        } else {
+            return [];
+        }
+    },
+
+    /** Given a chain (returned by the getCalleeChain function), this function will return
+     * an array of strings representing the names of the nodes in the chain.
+     */
+    getChainNames: function (chain) {
+        var self = this;
+        var names = [];
+
+        chain.forEach(function (node) {
+            names = names.concat(self._getNamesFromNode(node));
+        });
+
+        return names;
+    },
+
+    _getNamesFromNode: function (node) {
+        var self = this;
+        var names = [];
+
+        if (node.type === 'MemberExpression') {
+            names = names.concat(self._getNamesFromNode(node.object));
+            names = names.concat(self._getNamesFromNode(node.property));
+        } else if (node.type === 'Identifier') {
+            names.push(node.name);
+        }
+
+        return names;
+    },
+
+    getArgsAtIndex: function (chain, index) {
+        var node = chain[index];
+        return node.arguments || node.object.arguments;
     },
 
     /**
-     * Extract module name and dependencies form a file
+     * Tests whether a chain (an array of names) starts with a pattern (another array of names).
+     *
+     * Examples:
+     * chainNamesStartWith([ 'angular', 'module', 'controller' ], [ 'angular', 'module' ]) -> true
+     * chainNamesStartWith([ 'angular', 'module', 'controller' ], [ 'angular', 'mock', 'module' ]) -> false
+     *
+     * @param chain Chain to test
+     * @param pattern Pattern beginning of chain should match
+     */
+    chainNamesStartWith: function (chain, pattern) {
+        return _.isEqual(chain.slice(0, pattern.length), pattern);
+    },
+
+    /**
+     * Extract module name and dependencies from a file
      *
      * @param content File content
      * @param options
      *
-     * @return mixin { name: 'module name', dependencies: [ 'dependency' ]  }
+     * @return mixin { moduleName: [String], test: [Boolean], dependencies: [Array]  }
      */
     parse: function (content, options) {
         var self = this;
 
         options = options || {};
 
-        var moduleName = undefined,
-            loadedFiles = [],
-            injectedProviders = [],
-            namedProviders = [],
-            providerTypes = [],
+        var moduleName,
+            test,
             dependencies = [];
 
-        falafel(content, { loc: true, ecmaVersion: 6, sourceType: 'module' }, function (node) {
-            var nameNode, definitionNode;
+        var ast = acorn.parse(content, { ecmaVersion: 6, sourceType: 'module' });
 
-            if (node.type === 'CallExpression' && node.callee && node.arguments) {
-                var methodName = (node.callee.property || {}).name || node.callee.name;
-                var line = node.start.line;
+        acornWalk.recursive(ast, {}, {
+            'CallExpression': function (node, state, c) {
+                var nameNode, definitionNode;
 
-                if (methodName === 'require') {
-                    var path = helpers.extractLiteral(methodName, node.arguments[0]);
+                if (node.callee && node.arguments) {
+                    var chain = self.getCalleeChain(node);
+                    var chainNames = self.getChainNames(chain);
 
-                    if (path) {
-                        loadedFiles = _.union(loadedFiles, [ path ]);
-                    }
+                    if (self.chainNamesStartWith(chainNames, [ 'angular', 'mock', 'module' ])) {
+                        dependencies = _.union(dependencies, helpers.extractTestDependency(node));
+                        test = true;
+                    } else if (self.chainNamesStartWith(chainNames, [ 'angular', 'module' ])) {
+                        var args = self.getArgsAtIndex(chain, 1);
+                        nameNode = args[0];
+                        definitionNode = args[1];
 
-                } else {
-                    // Check if the callee object is angular
-                    if (self.traceCalleeChain(node) !== 'angular') {
-                        return;
-                    }
+                        if (nameNode && nameNode.type === 'Literal') {
+                            moduleName = helpers.extractLiteral(nameNode);
+                            test = false;
 
-                    var arguments = node.arguments;
-                    nameNode = arguments[0];
-                    definitionNode = arguments[arguments.length - 1];
-
-                    if (methodName === 'module') {
-                        if (nameNode.type !== 'Literal') {
-                            // Skip this statement if it's not literal
-
-                            return;
-                        }
-
-                        var name = helpers.extractLiteral(methodName, nameNode);
-
-                        // If we are processing module
-                        if (moduleName && moduleName !== name) {
-                            throw new Error('Please do not define multiple modules in same file on line {0}'.f(line));
-                        }
-                        moduleName = name;
-
-                        if (arguments.length > 1) {
-                            dependencies = _.union(dependencies, helpers.extractDependency(methodName, definitionNode));
+                            if (definitionNode && definitionNode.type === 'ArrayExpression') {
+                                dependencies = _.union(dependencies, helpers.extractDependency(definitionNode));
+                            }
                         }
                     } else {
-                        var isNgProvider = ngProviders.indexOf(methodName) !== -1;
-                        var isNgFunction = ngFuncs.indexOf(methodName) !== -1;
+                        if (node.arguments.length) {
+                            var calledFns = _.filter(node.arguments, { type: 'FunctionExpression' });
+                            calledFns.map(function (n) {
+                                c(n.body, state);
+                            });
 
-                        if (isNgProvider || isNgFunction) {
-                            if (isNgProvider) {
-                                // If we are processing other named providers
-                                namedProviders.push(helpers.extractLiteral(methodName, arguments[0]));
-                            }
-
-                            if ((isNgProvider && arguments.length > 1) || isNgFunction) {
-                                injectedProviders = _.union(injectedProviders, helpers.extractDependency(methodName, definitionNode));
-                            }
-
-                            providerTypes.push(methodName);
+                            var calls = _.filter(node.arguments, { type: 'CallExpression' });
+                            calls.map(function (n) {
+                                c(n, state);
+                            });
                         }
                     }
                 }
             }
         });
 
-        if (!s.nullOrEmpty(moduleName)) {
+        if (moduleName || test) {
             return {
                 moduleName: moduleName,
-                loadedFiles: loadedFiles,
-                injectedProviders: injectedProviders,
-                dependencies: dependencies,
-                namedProviders: namedProviders,
-                providerTypes: providerTypes
+                test: test,
+                dependencies: dependencies
             };
         }
     }

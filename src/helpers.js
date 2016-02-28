@@ -1,10 +1,8 @@
 var _ = require('lodash');
 var path = require('path');
-var s = require('./string');
-
 
 module.exports = {
-    extractLiteral: function (methodName, node) {
+    extractLiteral: function (node) {
         var line = node.start.line;
 
         if (node.type === 'Literal') {
@@ -12,7 +10,7 @@ module.exports = {
         }
     },
 
-    extractDependency: function (methodName, node) {
+    extractDependency: function (node) {
         var self = this;
         var line = node.start.line;
 
@@ -23,7 +21,7 @@ module.exports = {
                     result.push(element.value);
 
                 } else if (element.type === 'FunctionExpression') {
-                    _.each(self.extractDependency(methodName, element), function (name, index) {
+                    _.each(self.extractDependency(element), function (name, index) {
                         // Skip first N arguments
                         if (index >= result.length && !name.startsWith('$')) {
                             result.push(name);
@@ -44,14 +42,14 @@ module.exports = {
         // Ignore all others
     },
 
-    absolutePathToRelative: function (pathBase, absolutePath) {
-        var relativePath = path.relative(pathBase, absolutePath);
+    extractTestDependency: function (node) {
+        var self = this;
+        var line = node.start.line;
+        var modules = _(node.arguments)
+            .filter({ 'type': 'Literal' })
+            .map('value').value();
 
-        if (!relativePath.startsWith(path.sep) || !relativePath.startsWith('..')) {
-            relativePath = './' + relativePath;
-        }
-
-        return relativePath;
+        return modules;
     },
 
     isString: function (obj) {

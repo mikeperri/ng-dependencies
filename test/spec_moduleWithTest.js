@@ -4,14 +4,13 @@ var _ = require('lodash');
 var ngRequire = require('../index');
 
 var fixtures = {
-    a: './fixtures/multipleModules/a.js',
-    b: './fixtures/multipleModules/b.js',
-    c: './fixtures/multipleModules/c.js'
+    a: './fixtures/moduleWithTest/a.js',
+    aTest: './fixtures/moduleWithTest/a.test.js'
 };
 
-var folder = './fixtures/multipleModules';
+var folder = './fixtures/moduleWithTest';
 
-describe('Multiple modules', function () {
+describe('Module with tests', function () {
     before(function () {
         _.each(fixtures, function (value, key) {
             fixtures[key] = path.resolve(__dirname, value);
@@ -28,9 +27,8 @@ describe('Multiple modules', function () {
         ngRequire.update(folder);
         var fileDependenciesMap = ngRequire.getFileDependenciesMap();
 
-        expect(fileDependenciesMap[fixtures.a]).to.have.members([ 'b' ]);
-        expect(fileDependenciesMap[fixtures.b]).to.have.members(['a', 'c']);
-        expect(fileDependenciesMap[fixtures.c]).to.have.members(['a', 'b']);
+        expect(fileDependenciesMap[fixtures.a]).to.have.members([ ]);
+        expect(fileDependenciesMap[fixtures.aTest]).to.have.members([ 'a' ]);
     });
 
     it('should create a module -> files map', function () {
@@ -38,7 +36,5 @@ describe('Multiple modules', function () {
         var moduleFilesMap = ngRequire.getModuleFilesMap();
 
         expect(moduleFilesMap['a']).to.have.members([ fixtures.a ]);
-        expect(moduleFilesMap['b']).to.have.members([ fixtures.b ]);
-        expect(moduleFilesMap['c']).to.have.members([ fixtures.c ]);
     });
 });

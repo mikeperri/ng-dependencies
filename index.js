@@ -5,14 +5,10 @@ var readdirr = require('readdir-recursive');
 var globule = require('globule');
 
 var helpers = require('./src/helpers');
-var s = require('./src/string');
 var parser = require('./src/parser');
 
 // {File path -> meta} mapping
 var meta = {};
-
-// {Provider -> [file]} mapping for fast lookup
-var providerCache = {};
 
 // {Module name -> file[]} mapping for fast lookup
 var moduleCache = {};
@@ -88,226 +84,67 @@ module.exports = {
             }
         }
 
-        _.each(files, function (file) {
-            // Parse the file
-            var metaData = self._parse(file);
-            if (metaData === false || !metaData.angular) {
-                return skipped.push(file);
-            }
+        var results = _.map(files, _.bind(self._updateFile, self));
 
-            var moduleName = metaData.moduleName;
+        return {
+            success: _(results).filter({ skipped: false }).map('file').value(),
+            skipped: _(results).filter({ skipped: true }).map('file').value()
+        };
+    },
 
-            // Do not apply naming check on external modules
+    _updateFile: function (file) {
+        var self = this;
+        var metaData = self._parse(file);
+
+        if (metaData === false || !metaData.angular) {
+            return {
+                skipped: true,
+                file: file
+            };
+        }
+
+        if (!metaData.test) {
             if (!externalModulesRegexp.test(file)) {
+                // Do not apply naming check on external modules
+                var moduleName = metaData.moduleName;
 
                 // Naming check
                 if (options.ensureModuleName) {
                     var expectedModuleName = path.dirname(file).replace(/\//g, '.');
 
-                    if (!s.nullOrEmpty(moduleName) && expectedModuleName.indexOf(moduleName) === -1) {
-                        throw new Error('Module "{0}" should follow folder path for {1}'.f(moduleName, file));
-                    }
-                }
-
-                if (options.ensureProviderName) {
-                    if (metaData.namedProviders.length > 1) {
-                        throw new Error('Please define named providers "{0}" in different files'.f(metaData.namedProviders.join(', ')));
-
-                    } else if (metaData.namedProviders.length === 1 && !s.nullOrEmpty(metaData.namedProviders[0])) {
-                        var baseName = path.basename(file, '.js');
-                        var providerName = metaData.namedProviders[0].toLowerCase().replace(/[\-_]+/g, '');
-
-                        var expectedProviderNames = [];
-                        // like example
-                        expectedProviderNames.push(baseName.toLowerCase());
-
-                        // like ExampleController
-                        expectedProviderNames.push((baseName + metaData.providerTypes[0]).toLowerCase());
-
-                        // also skip ones start with $
-                        if (providerName[0] !== '$' && expectedProviderNames.indexOf(providerName) === -1) {
-                            throw new Error('Provider "{0}" is not matching file name at {1}'.f(metaData.namedProviders[0], file));
-                        }
+                    if (moduleName && expectedModuleName.indexOf(moduleName) === -1) {
+                        throw new Error('Module "' + moduleName + '" should follow folder path for ' + file);
                     }
                 }
             }
 
             // Add to cache
             moduleCache[moduleName] = _.union(moduleCache[moduleName] || [], [ file ]);
+        }
 
-            _.each(metaData.namedProviders, function (namedProvider) {
-                providerCache[namedProvider] = providerCache[namedProvider] || [];
-                providerCache[namedProvider].push(file);
-            });
-
-            success.push(file);
-        });
 
         return {
-            success: success,
-            skipped: skipped
-        }
+            skipped: false,
+            file: file
+        };
+    },
+
+    getFileDependenciesMap: function () {
+        var map = _(meta)
+            .filter({ angular: true })
+            .keyBy('path')
+            .mapValues('dependencies')
+            .value();
+
+        return map;
     },
 
     /**
-     * Get META data from absolute file path
-     * Please do a update before calling this to ensure latest status
-     *
-     * @param file
-     * @returns Object
+     * Returns a map of files to dependencies
+     * (update must have been called first)
      */
-    getMeta: function (file) {
-        return s.nullOrEmpty(file) ? meta : meta[file];
-    },
-
-    /**
-     * Get modules that not included
-     *
-     * @param file
-     * @return {Object}
-     */
-    getMissingDependencies: function (file) {
-        var self = this;
-
-        if (!(file in meta)) {
-            self._update(file);
-        }
-
-        var fileMeta = meta[file];
-        var fileBase = path.dirname(file);
-        var result = [], loadedModules = {}, loadedProviders = {};
-
-        // Add loaded providers to the list
-        _.map(fileMeta.loadedFiles, function (relativePath) {
-            // Check if the path is actually path
-            // Webpack may have many fancy stuff like require('bundle?a')
-            if (!relativePath || illegalPathCharRegexp.test(relativePath) || !relativePath.startsWith('.')) {
-                return;
-            }
-
-            var filePath = path.resolve(fileBase, relativePath);
-
-            // Default to js
-            if (s.nullOrEmpty(path.extname(filePath))) {
-                filePath += '.js';
-            }
-
-            /*
-             * To be a valid provider:
-             * File path is in the registry and also in the dependency list
-             * Or the file path is not in registry but the parse result indicates it's a angular module
-             */
-            var loadedFileMeta;
-
-            /*
-             * Best effort to parse required file
-             */
-            if (!(filePath in meta) && path.extname(filePath) === '.js' && fs.existsSync(filePath)) {
-                // attempt to parse file
-                self._parse(filePath);
-            }
-
-
-            loadedFileMeta = meta[filePath];
-            if (loadedFileMeta) {
-                var isDependency = fileMeta.dependencies.indexOf(loadedFileMeta.moduleName) !== -1;
-                var isInSameModule = fileMeta.moduleName === loadedFileMeta.moduleName;
-
-                // A provider can be regarded as loaded only if
-                // - Being required (require('path'))
-                // - Have dependency on angular.module('name', [ dependency here ])
-                if (isInSameModule || isDependency) {
-                    loadedProviders[loadedFileMeta.namedProviders] = true;
-                }
-
-                loadedModules[loadedFileMeta.moduleName] = true;
-            }
-        });
-
-
-        // Find out what is missing
-        var missingInjectedProviders = _.difference(fileMeta.injectedProviders, _.keys(loadedProviders));
-
-        // Try to find them in the cache
-        for (var i = missingInjectedProviders.length - 1; i >= 0; i--) {
-            var provider = missingInjectedProviders[i];
-            if (provider in providerCache) {
-                missingInjectedProviders.splice(i, 1);
-
-                // Absolute to relative path
-                var absolutePaths = providerCache[provider];
-                var availableChoices = _.transform(absolutePaths, function (result, absolutePath) {
-                    result.push({
-                        path: absolutePath,
-                        relativePath: helpers.absolutePathToRelative(fileBase, absolutePath)
-                    });
-                });
-
-                // Sort relative path from shortest to longest
-                availableChoices.sort(function (pathA, pathB) {
-                    return pathA.relativePath.length - pathB.relativePath.length;
-                });
-
-                var choice = availableChoices[0];
-
-                // Use the shortest one
-                result.push({
-                    providerName: provider,
-                    moduleName: meta[choice.path].moduleName,
-                    path: choice.path,
-                    relativePath: choice.relativePath
-                });
-            }
-        }
-
-        // If still can't find
-        if (options.ignoreProviders && options.ignoreProviders.length > 0) {
-            missingInjectedProviders = _.filter(missingInjectedProviders, function (missingInjectedProvider) {
-                var ignore = false;
-
-                _.each(options.ignoreProviders, function (ignoreExpr) {
-                    if (helpers.isString(ignoreExpr)) {
-                        ignore = ignoreExpr === missingInjectedProvider;
-                    }
-
-                    if (helpers.isRegexp(ignoreExpr)) {
-                        ignore = ignoreExpr.test(missingInjectedProvider);
-                    }
-
-                    if (ignore) return false;
-                });
-
-                return !ignore;
-            });
-        }
-
-        if (missingInjectedProviders.length > 0) {
-            throw new Error('Can not find provider "{0}" in {1}'.f(missingInjectedProviders.join(', '), file));
-        }
-
-        // Include modules that user explicit specified
-        _.each(fileMeta.dependencies, function (dependency) {
-            if (!(dependency in loadedModules)) {
-                // Absolute to relative path
-                var absolutePaths = moduleCache[dependency];
-
-                // Only process known modules
-                if (absolutePaths) {
-                    _.each(absolutePaths, function (absolutePath) {
-                        var relativePath = helpers.absolutePathToRelative(fileBase, absolutePath);
-
-                        result.push({
-                            providerName: '',
-                            moduleName:   dependency,
-                            path:         absolutePath,
-                            relativePath: relativePath
-                        });
-                    });
-                }
-            }
-        });
-
-        return result;
+    getModuleFilesMap: function () {
+        return moduleCache;
     },
 
     /**
@@ -331,6 +168,6 @@ module.exports = {
     clean: function () {
         meta = {};
         options = {};
-        providerCache = {};
+        moduleCache = {};
     }
 };
