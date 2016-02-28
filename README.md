@@ -1,16 +1,91 @@
-#ngrequire
+# ng-dependency-map
+[![Dependency Status](https://gemnasium.com/mikeperri/ng-dependency-map.svg)](https://gemnasium.com/mikeperri/ng-dependency-map)
 
-[![Build Status](https://travis-ci.org/randing89/ngrequire.svg)](https://travis-ci.org/randing89/ngrequire)
-[![Coverage Status](https://coveralls.io/repos/randing89/ngrequire/badge.svg?branch=master)](https://coveralls.io/r/randing89/ngrequire?branch=master)
-[![Dependency Status](https://gemnasium.com/randing89/ngrequire.svg)](https://gemnasium.com/randing89/ngrequire)
+(Forked from https://github.com/randing89/ngrequire)
+(See also: https://github.com/klei/ng-dependencies)
 
-A utility to analyse angular dependencies
+A utility to analyze Angular module dependencies.
+It scans files, given by a glob pattern, and builds two maps.
+* A map of files to Angular module dependencies
+* A map of Angular module names to files
 
-#Usage
+## Standard case
+An Angular module definition looks like this:
+```javascript
+// .../src/myCoolModule.js
+angular.module('myCoolModule', [ 'myDependency' ])
+    .directive(myDirective)
+    .service(myService);
+```
 
-##update(moduleSourceBase);
+The map of files to Angular module dependencies will look like this:
+```javascript
+{
+    '.../src/myCoolModule.js': [ 'myDependency ']
+}
+```
 
-- moduleSourceBase: Glob-like file path array. Should contains all your angular modules, providers etc..
+And the map of module names to files will look like this:
+```javascript
+{
+    'myDependency': [ '.../src/myCoolModule.js' ]
+}
+```
+
+## Modules across multiple files
+Note that passing the second argument to angular.module is what constitutes a module definition.
+It's possible to have more files that add providers to an existing module after it's defined.
+
+If you add a file like this:
+```javascript
+// .../src/myCoolModuleAnotherService.js
+angular.module('myCoolModule')
+    .service(anotherService);
+```
+
+The map of files to dependencies won't change.
+
+The map of module names to files will look like this:
+```javascript
+{
+    'myDependency': [ '.../src/myCoolModule.js', '.../src/myCoolModuleAnotherService.js' ]
+}
+```
+
+## Use with ngMock
+ngMock is also supported. You need to use the full name "angular.mock.module" rather than just "module" (to be safe).
+If you add a test file like this:
+```javascript
+// .../src/myCoolModule.test.js
+describe('my cool module', function () {
+    beforeEach(function () {
+        angular.mock.module('myCoolModule');
+    });
+
+    it('should compile the directive', function () {
+        ...
+    });
+});
+```
+
+The map of module names to files won't change.
+
+The map of files to dependencies will look like this:
+```javascript
+{
+    '.../src/myCoolModule.js': [ 'myDependency '],
+    '.../src/myCoolModule.test.js': [ 'myCoolModule' ]
+}
+```
+
+
+# API
+
+## update(moduleSourceBase, options);
+- moduleSourceBase: Glob-like file path array. Should contain all your angular modules.
+- options: Optional. Set 'ensureModuleName' to true to require all module names to match their folder names.
+
+The update function will keep track of when a file was last updated, so it won't process a file again if it hasn't changed.
 
 ```javascript
 return {
@@ -19,19 +94,11 @@ return {
 }
 ```
 
-##getMeta(path);
+## clean()
+Clean the cache.
 
-- path: Get file meta for given path
+## getFileDependenciesMap();
+Get a map of files to dependencies.
 
-```javascript
-return {
-  moduleName: 'Name of the angular module',
-  loadedFiles: ['List of required file (if using commonjs way)'],
-  injectedProviders: ['Provider list being injected'],
-  dependencies: ['Module dependencies'],
-  namedProviders: ['All provider names defeind in this module (factory, service etc)'],
-  providerTypes: ['All provider types defined in this module']
-}
-```
-
-
+## getModuleFilesMap()
+Get a map of modules to the files they are defined in.
