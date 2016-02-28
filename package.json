@@ -1,11 +1,11 @@
 {
-  "name": "ngrequire",
-  "version": "2.0.30",
+  "name": "ng-dependency-map",
+  "version": "1.0.0",
   "description": "Analyse AngularJS module dependencies",
   "main": "index.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/randing89/ngrequire"
+    "url": "https://github.com/mikeperri/ng-dependency-map"
   },
   "bin": {
     "ngrequire": "bin/cli.js"
@@ -13,14 +13,24 @@
   "scripts": {
     "test": "./node_modules/.bin/istanbul cover ./node_modules/mocha/bin/_mocha ./test/**/spec*.js --report lcovonly -- -R spec && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js && rm -rf ./coverage"
   },
-  "author": "Ran Ding",
+  "author": {
+    "name": "Mike Perri",
+    "email": "<me@michaeljperri.com>",
+    "url": "http://michaeljperri.com"
+  },
+  "contributors": [
+    {
+      "name": "Ran Ding"
+    }
+  ],
   "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mikeperri/ng-dependency-map/issues"
+  },
   "devDependencies": {
     "chai": "^1.9.2",
     "coveralls": "^2.11.2",
     "fs-extra": "^0.16.3",
-    "gulp": "^3.8.9",
-    "gulp-shell": "^0.2.10",
     "istanbul": "^0.3.13",
     "mocha": "^2.1.0",
     "mocha-lcov-reporter": "0.0.1"

@@ -2,6 +2,7 @@
 [![Dependency Status](https://gemnasium.com/mikeperri/ng-dependency-map.svg)](https://gemnasium.com/mikeperri/ng-dependency-map)
 
 (Forked from https://github.com/randing89/ngrequire)
+
 (See also: https://github.com/klei/ng-dependencies)
 
 A utility to analyze Angular module dependencies.
@@ -81,7 +82,7 @@ The map of files to dependencies will look like this:
 
 # API
 
-## update(moduleSourceBase, options);
+## update(moduleSourceBase, options)
 - moduleSourceBase: Glob-like file path array. Should contain all your angular modules.
 - options: Optional. Set 'ensureModuleName' to true to require all module names to match their folder names.
 
@@ -97,7 +98,7 @@ return {
 ## clean()
 Clean the cache.
 
-## getFileDependenciesMap();
+## getFileDependenciesMap()
 Get a map of files to dependencies.
 
 ## getModuleFilesMap()
