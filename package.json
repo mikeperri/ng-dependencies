@@ -7,9 +7,6 @@
     "type": "git",
     "url": "https://github.com/mikeperri/ng-dependency-map"
   },
-  "bin": {
-    "ngrequire": "bin/cli.js"
-  },
   "scripts": {
     "test": "./node_modules/.bin/istanbul cover ./node_modules/mocha/bin/_mocha ./test/**/spec*.js --report lcovonly -- -R spec && rm -rf ./coverage"
   },
@@ -36,7 +33,6 @@
   },
   "dependencies": {
     "acorn": "^3.0.4",
-    "falafel": "^1.2.0",
     "globule": "^0.2.0",
     "lodash": "^4.5.1",
     "minimist": "^1.2.0",
