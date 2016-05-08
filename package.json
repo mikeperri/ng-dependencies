@@ -1,6 +1,6 @@
 {
   "name": "ng-dependency-map",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Analyse AngularJS module dependencies",
   "main": "index.js",
   "repository": {
