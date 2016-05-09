@@ -2,13 +2,13 @@
   "name": "ng-dependency-map",
   "version": "1.0.1",
   "description": "Analyse AngularJS module dependencies",
-  "main": "index.js",
+  "main": "lib/index.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/mikeperri/ng-dependency-map"
   },
   "scripts": {
-    "test": "./node_modules/.bin/istanbul cover ./node_modules/mocha/bin/_mocha ./test/**/spec*.js --report lcovonly -- -R spec && rm -rf ./coverage"
+    "test": "./node_modules/mocha/bin/_mocha ./test/**/spec*.js"
   },
   "author": {
     "name": "Mike Perri",
@@ -32,10 +32,8 @@
     "mocha-lcov-reporter": "0.0.1"
   },
   "dependencies": {
-    "acorn": "^3.0.4",
-    "globule": "^0.2.0",
-    "lodash": "^4.5.1",
-    "minimist": "^1.2.0",
-    "readdir-recursive": "0.0.4"
+    "callsites": "^1.0.0",
+    "glob": "^7.0.3",
+    "lodash": "^4.5.1"
   }
 }
